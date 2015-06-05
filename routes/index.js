@@ -7,21 +7,28 @@ This is a request handler for loading the main page. It will check to see if
 a user is logged in, and render the index page either way.
 */
 router.get('/', function(request, response, next) {
-  var username;
+  var username = null;
   /*
   Check to see if a user is logged in. If they have a cookie called
   "username," assume it contains their username
   */
-  if (request.cookies.username) {
-    username = request.cookies.username;
+  if (request.cookies.username != undefined) {
+    username = request.cookies.username;  
+
+    database = app.get('database');
+    database('posts').select().then(function(retrivePosts){
+      response.render('index', {title: 'DERP', username: username, posts: retrivePosts});
+    })//.finally({database.destroy()});
+
   } else {
     username = null;
+    response.render('login', { title: 'DERP', username: username });
   }
   /*
   render the index page. The username variable will be either null
   or a string indicating the username.
   */
-  response.render('index', { title: 'Authorize Me!', username: username });
+  
 });
 
 /*
@@ -110,6 +117,7 @@ router.post('/login', function(request, response) {
 
   Again, app.get('database') returns the knex object set up in app.js.
   */
+
   var username = request.body.username,
       password = request.body.password,
       database = app.get('database');
@@ -126,7 +134,7 @@ router.post('/login', function(request, response) {
     page again, with an error message telling the user what's going on.
     */
     if (records.length === 0) {
-        response.render('index', {
+        response.render('login', {
           title: 'Authorize Me!',
           user: null,
           error: "No such user"
@@ -147,13 +155,26 @@ router.post('/login', function(request, response) {
         There's a user by that name, but the password was wrong. Re-render the
         index page, with an error telling the user what happened.
         */
-        response.render('index', {
+        response.render('login', {
           title: 'Authorize Me!',
           user: null,
           error: "Password incorrect"
         });
       }
     }
+  });
+});
+
+router.post('/addpost', function(request, response){
+
+  var user_id = request.cookies.username,
+      postText = request.body.postText,
+      postTime = Date.now(),
+      database = app.get('database');
+
+  database('posts').insert({
+    body           : postText}).then(function(){
+    response.redirect('/');
   });
 });
 

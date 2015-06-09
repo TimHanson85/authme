@@ -1,35 +1,74 @@
 var express = require('express');
 var router = express.Router();
-var app = require('../app')
+var app = require('../app');
+// var moment = require('moment');
+var redis = require('redis');
+var cache = redis.createClient();
 
-/*
-This is a request handler for loading the main page. It will check to see if
-a user is logged in, and render the index page either way.
-*/
+
+
+router.get('/', function(request, response, next){
+  var username = null
+  database = app.get('database');
+
+  if (request.cookies.username != undefined){
+    username = request.cookies.username;
+  }
+})
+
+//useing redis//////////////
+
+//   cache.lrange('posts', 0, -1, function(err,cachePosts){
+//     if (cachePosts.length < 1) {
+
+//       database('posts').select().then(function(retrivedPosts){
+
+//         cache.lpush('posts', retrivedPosts);
+
+//         response.render('index', {title: 'DERP', username: username, posts: retrivedPosts});
+//       })
+//     }else{
+//       response.render('index', {title: 'DERP', username: username, posts: cachePosts[0]});
+//     }
+//   })
+//+++++++++++++++++++++++++++
+
+
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 router.get('/', function(request, response, next) {
   var username = null;
   /*
   Check to see if a user is logged in. If they have a cookie called
   "username," assume it contains their username
   */
+
   if (request.cookies.username != undefined) {
     username = request.cookies.username;  
 
     database = app.get('database');
     database('posts').select().then(function(retrivePosts){
+      retrivePosts.sort(function(a,b){
+        if (a.post_number > b.post_number){
+          return -1;
+        }
+        if (a.post_number < b.post_number){
+          return 1;
+        }else{
+          return 0;
+        }
+      })
       response.render('index', {title: 'DERP', username: username, posts: retrivePosts});
-    })//.finally({database.destroy()});
+    })
+//+++++++++++++++++++++++++++++++++++++++++++++++++
 
   } else {
     username = null;
     response.render('login', { title: 'DERP', username: username });
   }
-  /*
-  render the index page. The username variable will be either null
-  or a string indicating the username.
-  */
-  
 });
+
+
 
 /*
 This is the request handler for receiving a registration request. It will
@@ -62,15 +101,9 @@ router.post('/register', function(request, response) {
       database = app.get('database');
 
   if (password === password_confirm) {
-    /*
-    This will insert a new record into the users table. The insert
-    function takes an object whose keys are column names and whose values
-    are the contents of the record.
 
-    This uses a "promise" interface. It's similar to the callbacks we've
-    worked with before. insert({}).then(function() {...}) is very similar
-    to insert({}, function() {...});
-    */
+
+//set verification email+++++++++++++++++++++++++++++++
     database('users').insert({
       username: username,
       password: password,
@@ -169,13 +202,22 @@ router.post('/addpost', function(request, response){
 
   var user_id = request.cookies.username,
       postText = request.body.postText,
-      postTime = Date.now(),
+      postTime = new Date(),
       database = app.get('database');
 
   database('posts').insert({
-    body           : postText}).then(function(){
+    body           : postText,
+    username       : user_id,
+    posted_at      : postTime
+  }).then(function(){
     response.redirect('/');
   });
 });
+
+router.post('/logout', function(request, response){
+  response.clearCookie('username');
+  response.redirect('/');
+})
+
 
 module.exports = router;

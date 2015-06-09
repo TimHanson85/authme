@@ -2,12 +2,13 @@ extends layout
 
 block content
   h1= title
-  img(src='http://i.imgur.com/m4YcC.jpg')
+  img.image(src='http://i.imgur.com/m4YcC.jpg')
   if error
     h3= error
   if username
     p You are currently logged in as #{ username }
-    p words and stuff
+      form(method="post" action="logout")
+        input(type="submit" value="logout")
     div
     form(method="post" action="/addpost")
       h2 Give me your posts
@@ -15,11 +16,11 @@ block content
         label Say things:
           input(type="text" name="postText" placeholder="postStuff")
           input(type="submit" value="endter")
-    div
-    each post in posts
-      p= post.user_id
-      p= post.body
-      p= post.posted_at
+    div.tweets
+      each post in posts
+        p.user= post.username
+          span.body= post.body
+          span.date= post.posted_at
   //- else
   //-   p You are not logged in. Would you like to be?
   //-   div

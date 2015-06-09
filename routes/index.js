@@ -2,19 +2,23 @@ var express = require('express');
 var router = express.Router();
 var app = require('../app');
 // var moment = require('moment');
-var redis = require('redis');
-var cache = redis.createClient();
+//var redis = require('redis');
+//var cache = redis.createClient();
+var uuid = require('node-uuid');
+var nodemailer = require('nodemailer');
+
+var usersToAdd = [];
+console.log(usersToAdd);
 
 
+// router.get('/', function(request, response, next){
+//   var username = null
+//   database = app.get('database');
 
-router.get('/', function(request, response, next){
-  var username = null
-  database = app.get('database');
-
-  if (request.cookies.username != undefined){
-    username = request.cookies.username;
-  }
-})
+//   if (request.cookies.username != undefined){
+//     username = request.cookies.username;
+//   }
+// })
 
 //useing redis//////////////
 
@@ -83,48 +87,66 @@ It has some bugs:
   without complaint.
 */
 router.post('/register', function(request, response) {
-  /*
-  request.body is an object containing the data submitted from the form.
-  Since we're in a POST handler, we use request.body. A GET handler would use
-  request.params. The parameter names correspond to the "name" attributes of
-  the form fields.
 
-  app.get('database') returns the knex object that was set up in app.js. app.get
-  is not the same as router.get; it's more like object attributes. You could
-  think of it like it's saying app.database, but express apps use .get and .set
-  instead of attributes to avoid conflicts with the attributes that express apps
-  already have.
-  */
   var username = request.body.username,
       password = request.body.password,
       password_confirm = request.body.password_confirm,
+      email = request.body.email,
       database = app.get('database');
+      
+
+  
+
 
   if (password === password_confirm) {
 
 
-//set verification email+++++++++++++++++++++++++++++++
-    database('users').insert({
-      username: username,
-      password: password,
-    }).then(function() {
-      /*
-      Here we set a "username" cookie on the response. This is the cookie
-      that the GET handler above will look at to determine if the user is
-      logged in.
+//stash username password for later verification
+  var newNonce = uuid.v4()
+  usersToAdd.push({nonce: newNonce, username: username, password: password})
+  console.log(usersToAdd);
+  
 
-      Then we redirect the user to the root path, which will cause their
-      browser to send another request that hits that GET handler.
-      */
-      response.cookie('username', username)
-      response.redirect('/');
-    });
+
+  //create transporter object
+  var transporter = nodemailer.createTransport({
+    service: 'Gmail',
+    auth: {
+      user: 'thhan1985',
+      pass: 'Parker08'
+    }
+  })
+
+
+var verificationUrl = 'http://localhost:3000/verify_email/' + newNonce;
+  // setup e-mail data with unicode symbols 
+var mailOptions = {
+    from: 'Tim ✔ <thhan1985@gmail.com>', // sender address 
+    to: email,// list of receivers 
+    subject: 'Hello ✔', // Subject line 
+    text: 'Hello world ✔', // plaintext body 
+    html: '<a href=' + verificationUrl + '>Click link to verify email</a>' // html body 
+};
+
+// send mail with defined transport object 
+transporter.sendMail(mailOptions, function(error, info){
+    if(error){
+        console.log(error);
+    }else{
+        console.log('Message sent: ' + info.response);
+    }
+});
+
+  response.render('login', {
+    title: 'Authorize Me!',
+    user:null,
+    error: 'Please click link in your email'
+  });
+
+
+
+
   } else {
-    /*
-    The user mistyped either their password or the confirmation, or both.
-    Render the index page again, with an error message telling them what's
-    wrong.
-    */
     response.render('index', {
       title: 'Authorize Me!',
       user: null,
@@ -133,16 +155,46 @@ router.post('/register', function(request, response) {
   }
 });
 
-/*
-This is the request handler for logging in as an existing user. It will check
-to see if there is a user by the given name, then check to see if the given
-password matches theirs.
 
-Given the bug in registration where multiple people can register the same
-username, this ought to be able to handle the case where it looks for a user
-by name and gets back multiple matches. It doesn't, though; it just looks at
-the first user it finds.
-*/
+
+
+//email verification
+router.get('/verify_email/:nonce', function(request, response) {
+  database = app.get('database');
+  var returnedNonce = request.params.nonce;
+//add users to the database
+  usersToAdd.forEach(function(user){
+  if(user.nonce === returnedNonce){
+    database('users').insert({
+      username : user.username,
+      password : user.password,
+      email    : user.email
+      }).then(function(){
+        response.cookie('username', user.username)
+        response.redirect('/')
+      })
+    }   
+  })
+});
+
+    // redisClient.get(request.params.nonce, function(userId) {
+    //     redisClient.del(request.params.nonce, function() {
+    //         if (userId) {
+    //             new User({id: userId}).fetch(function(user) {
+    //                 user.set('verifiedAt', new Date().toISOString());
+    //                 // now log the user in, etc.
+    //             })
+    //         } else {
+    //             response.render('index',
+    //                 {error: "That verification code is invalid!"});
+    //         }
+    //     });
+    // });
+
+
+//
+
+
 router.post('/login', function(request, response) {
   /*
   Fetch the values the user has sent with their login request. Again, we're
